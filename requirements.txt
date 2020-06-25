@@ -2,3 +2,4 @@ tensorflow
 imageio
 ipython
 matplotlib
+pandas
