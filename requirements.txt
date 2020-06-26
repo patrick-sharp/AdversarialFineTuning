@@ -3,3 +3,4 @@ imageio
 ipython
 matplotlib
 pandas
+h5py
