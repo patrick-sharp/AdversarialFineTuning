@@ -1,4 +1,5 @@
 tensorflow
+tensorflow_datasets
 imageio
 ipython
 matplotlib
