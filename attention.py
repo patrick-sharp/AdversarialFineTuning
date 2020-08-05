@@ -1,3 +1,5 @@
+import tensorflow as tf
+
 def scaled_dot_product_attention(q, k, v, mask):
   """Calculate the attention weights.
   q, k, v must have matching leading dimensions.

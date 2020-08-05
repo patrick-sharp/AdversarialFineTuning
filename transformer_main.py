@@ -1,13 +1,10 @@
 #https://www.tensorflow.org/tutorials/text/transformer
-import tensorflow_datasets as tfds
-import tensorflow as tf
-
 import time
-import numpy as np
+
+import tensorflow as tf
 import matplotlib.pyplot as plt
 
 from constants import *
-
 from preprocessing import load_data
 from preprocessing import get_tokenizers
 from preprocessing import preprocess_dataset
@@ -17,13 +14,6 @@ train_examples, val_examples = load_data()
 tokenizer_en, tokenizer_pt = get_tokenizers(train_examples)
 train_dataset, val_dataset = preprocess_dataset(train_examples, val_examples, tokenizer_en, tokenizer_pt)
 
-from positional_encoding import positional_encoding
-pos_encoding = positional_encoding(50, 512)
-
-from attention import MultiHeadAttention
-
-from encoder import Encoder
-from decoder import Decoder
 from transformer_model import Transformer
 
 # set hyperparameters
@@ -244,14 +234,14 @@ def translate(sentence, plot=''):
     plot_attention_weights(attention_weights, sentence, result, plot)
 
 translate("este é um problema que temos que resolver.")
-print ("Real translation: this is a problem we have to solve .")
+print("Real translation: this is a problem we have to solve .")
 
 translate("os meus vizinhos ouviram sobre esta ideia.")
-print ("Real translation: and my neighboring homes heard about this idea .")
+print("Real translation: and my neighboring homes heard about this idea .")
 
 translate("vou então muito rapidamente partilhar convosco algumas histórias de algumas coisas mágicas que aconteceram.")
-print ("Real translation: so i 'll just share with you some stories very quickly of some magical things that have happened .")
+print("Real translation: so i 'll just share with you some stories very quickly of some magical things that have happened .")
 
 translate("este é o primeiro livro que eu fiz.", plot='decoder_layer4_block2')
-print ("Real translation: this is the first book i've ever done.")
+print("Real translation: this is the first book i've ever done.")
 
