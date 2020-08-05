@@ -1,3 +1,5 @@
+import tensorflow as tf
+
 # Mask all the pad tokens in the batch of sequences. It ensures that the model
 # does not treat padding as the input. The mask indicates where pad value 0 
 # is present: it outputs a 1 at those locations, and a 0 otherwise.

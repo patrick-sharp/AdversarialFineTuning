@@ -1,3 +1,4 @@
+import tensorflow as tf
 import matplotlib.pyplot as plt
 
 # use the position of a token within a sentence to compute an angle
