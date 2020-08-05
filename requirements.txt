@@ -1,7 +1,8 @@
-tensorflow
-tensorflow_datasets
-imageio
+tensorflow==2.3.0
+tensorflow_datasets==3.2.1
+imageio==2.9.0
 ipython
-matplotlib
-pandas
-h5py
+matplotlib==3.3.0
+pandas==1.1.0
+h5py==2.10.0
+pylint

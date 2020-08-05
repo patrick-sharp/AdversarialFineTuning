@@ -17,104 +17,16 @@ train_examples, val_examples = load_data()
 tokenizer_en, tokenizer_pt = get_tokenizers(train_examples)
 train_dataset, val_dataset = preprocess_dataset(train_examples, val_examples, tokenizer_en, tokenizer_pt)
 
-# use the position of a token within a sentence to compute an angle
-# this angle will be used in the positional encoding formula
-def get_angles(pos, i, d_model):
-  angle_rates = 1 / np.power(10000, (2 * (i//2)) / np.float32(d_model))
-  return pos * angle_rates
-
-# positional encoding (https://github.com/tensorflow/examples/blob/master/community/en/position_encoding.ipynb)
-def positional_encoding(position, d_model):
-  angle_rads = get_angles(np.arange(position)[:, np.newaxis],
-                          np.arange(d_model)[np.newaxis, :],
-                          d_model)
-  
-  # apply sin to even indices in the array; 2i
-  angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
-  
-  # apply cos to odd indices in the array; 2i+1
-  angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
-    
-  pos_encoding = angle_rads[np.newaxis, ...]
-    
-  return tf.cast(pos_encoding, dtype=tf.float32)
-
+from positional_encoding import positional_encoding
 pos_encoding = positional_encoding(50, 512)
-#print (pos_encoding.shape)
 
-# plt.pcolormesh(pos_encoding[0], cmap='RdBu')
-# plt.xlabel('Depth')
-# plt.xlim((0, 512))
-# plt.ylabel('Position')
-# plt.colorbar()
-# plt.show()
-
-# Mask all the pad tokens in the batch of sequences. It ensures that the model
-# does not treat padding as the input. The mask indicates where pad value 0 
-# is present: it outputs a 1 at those locations, and a 0 otherwise.
-def create_padding_mask(seq):
-  seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
-  
-  # add extra dimensions to add the padding
-  # to the attention logits.
-  return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, 1, seq_len)
-
-x = tf.constant([[7, 6, 0, 0, 1], [1, 2, 3, 0, 0], [0, 0, 0, 4, 5]])
-create_padding_mask(x)
-
-def create_look_ahead_mask(size):
-  mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)
-  return mask  # (seq_len, seq_len)
-
-x = tf.random.uniform((1, 3))
-temp = create_look_ahead_mask(x.shape[1])
-temp
-
-from attention import MultiHeadAttention, print_out
-
-np.set_printoptions(suppress=True)
-
-temp_k = tf.constant([[10,0,0],
-                      [0,10,0],
-                      [0,0,10],
-                      [0,0,10]], dtype=tf.float32)  # (4, 3)
-
-temp_v = tf.constant([[   1,0],
-                      [  10,0],
-                      [ 100,5],
-                      [1000,6]], dtype=tf.float32)  # (4, 2)
-
-# This `query` aligns with the second `key`,
-# so the second `value` is returned.
-temp_q = tf.constant([[0, 10, 0]], dtype=tf.float32)  # (1, 3)
-print_out(temp_q, temp_k, temp_v)
-
-# This query aligns with a repeated key (third and fourth), 
-# so all associated values get averaged.
-temp_q = tf.constant([[0, 0, 10]], dtype=tf.float32)  # (1, 3)
-print_out(temp_q, temp_k, temp_v)
-
-# This query aligns equally with the first and second key, 
-# so their values get averaged.
-temp_q = tf.constant([[10, 10, 0]], dtype=tf.float32)  # (1, 3)
-print_out(temp_q, temp_k, temp_v)
-
-temp_q = tf.constant([[0, 0, 10], [0, 10, 0], [10, 10, 0]], dtype=tf.float32)  # (3, 3)
-print_out(temp_q, temp_k, temp_v)
-
-temp_mha = MultiHeadAttention(d_model=512, num_heads=8)
-y = tf.random.uniform((1, 60, 512))  # (batch_size, encoder_sequence, d_model)
-out, attn = temp_mha(y, k=y, q=y, mask=None)
-out.shape, attn.shape
+from attention import MultiHeadAttention
 
 def point_wise_feed_forward_network(d_model, dff):
   return tf.keras.Sequential([
       tf.keras.layers.Dense(dff, activation='relu'),  # (batch_size, seq_len, dff)
       tf.keras.layers.Dense(d_model)  # (batch_size, seq_len, d_model)
   ])
-
-sample_ffn = point_wise_feed_forward_network(512, 2048)
-sample_ffn(tf.random.uniform((64, 50, 512))).shape
 
 class EncoderLayer(tf.keras.layers.Layer):
   def __init__(self, d_model, num_heads, dff, rate=0.1):
@@ -140,13 +52,6 @@ class EncoderLayer(tf.keras.layers.Layer):
     out2 = self.layernorm2(out1 + ffn_output)  # (batch_size, input_seq_len, d_model)
     
     return out2
-
-sample_encoder_layer = EncoderLayer(512, 8, 2048)
-
-sample_encoder_layer_output = sample_encoder_layer(
-    tf.random.uniform((64, 43, 512)), False, None)
-
-sample_encoder_layer_output.shape  # (batch_size, input_seq_len, d_model)
 
 
 class DecoderLayer(tf.keras.layers.Layer):
@@ -186,14 +91,6 @@ class DecoderLayer(tf.keras.layers.Layer):
     
     return out3, attn_weights_block1, attn_weights_block2
 
-sample_decoder_layer = DecoderLayer(512, 8, 2048)
-
-sample_decoder_layer_output, _, _ = sample_decoder_layer(
-    tf.random.uniform((64, 50, 512)), sample_encoder_layer_output, 
-    False, None, None)
-
-sample_decoder_layer_output.shape  # (batch_size, target_seq_len, d_model)
-
 class Encoder(tf.keras.layers.Layer):
   def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size,
                maximum_position_encoding, rate=0.1):
@@ -227,17 +124,6 @@ class Encoder(tf.keras.layers.Layer):
       x = self.enc_layers[i](x, training, mask)
     
     return x  # (batch_size, input_seq_len, d_model)
-
-
-sample_encoder = Encoder(num_layers=2, d_model=512, num_heads=8, 
-                         dff=2048, input_vocab_size=8500,
-                         maximum_position_encoding=10000)
-temp_input = tf.random.uniform((64, 62), dtype=tf.int64, minval=0, maxval=200)
-
-sample_encoder_output = sample_encoder(temp_input, training=False, mask=None)
-
-print (sample_encoder_output.shape)  # (batch_size, input_seq_len, d_model)
-
 
 class Decoder(tf.keras.layers.Layer):
   def __init__(self, num_layers, d_model, num_heads, dff, target_vocab_size,
@@ -276,20 +162,6 @@ class Decoder(tf.keras.layers.Layer):
     # x.shape == (batch_size, target_seq_len, d_model)
     return x, attention_weights
 
-sample_decoder = Decoder(num_layers=2, d_model=512, num_heads=8, 
-                         dff=2048, target_vocab_size=8000,
-                         maximum_position_encoding=5000)
-temp_input = tf.random.uniform((64, 26), dtype=tf.int64, minval=0, maxval=200)
-
-output, attn = sample_decoder(temp_input, 
-                              enc_output=sample_encoder_output, 
-                              training=False,
-                              look_ahead_mask=None, 
-                              padding_mask=None)
-
-output.shape, attn['decoder_layer2_block2'].shape
-
-
 class Transformer(tf.keras.Model):
   def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, 
                target_vocab_size, pe_input, pe_target, rate=0.1):
@@ -316,21 +188,6 @@ class Transformer(tf.keras.Model):
     
     return final_output, attention_weights
 
-sample_transformer = Transformer(
-    num_layers=2, d_model=512, num_heads=8, dff=2048, 
-    input_vocab_size=8500, target_vocab_size=8000, 
-    pe_input=10000, pe_target=6000)
-
-temp_input = tf.random.uniform((64, 38), dtype=tf.int64, minval=0, maxval=200)
-temp_target = tf.random.uniform((64, 36), dtype=tf.int64, minval=0, maxval=200)
-
-fn_out, _ = sample_transformer(temp_input, temp_target, training=False, 
-                               enc_padding_mask=None, 
-                               look_ahead_mask=None,
-                               dec_padding_mask=None)
-
-fn_out.shape  # (batch_size, tar_seq_len, target_vocab_size)
-
 
 num_layers = 4
 d_model = 128
@@ -340,7 +197,6 @@ num_heads = 8
 input_vocab_size = tokenizer_pt.vocab_size + 2
 target_vocab_size = tokenizer_en.vocab_size + 2
 dropout_rate = 0.1
-
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
   def __init__(self, d_model, warmup_steps=4000):
@@ -391,22 +247,7 @@ transformer = Transformer(num_layers, d_model, num_heads, dff,
                           pe_target=target_vocab_size,
                           rate=dropout_rate)
 
-def create_masks(inp, tar):
-  # Encoder padding mask
-  enc_padding_mask = create_padding_mask(inp)
-  
-  # Used in the 2nd attention block in the decoder.
-  # This padding mask is used to mask the encoder outputs.
-  dec_padding_mask = create_padding_mask(inp)
-  
-  # Used in the 1st attention block in the decoder.
-  # It is used to pad and mask future tokens in the input received by 
-  # the decoder.
-  look_ahead_mask = create_look_ahead_mask(tf.shape(tar)[1])
-  dec_target_padding_mask = create_padding_mask(tar)
-  combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
-  
-  return enc_padding_mask, combined_mask, dec_padding_mask
+from create_masks import create_masks
 
 checkpoint_path = "./transformer_checkpoints/train"
 
