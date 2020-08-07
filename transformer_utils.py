@@ -2,6 +2,9 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 
 from constants import MAX_LENGTH
+from constants import CHECKPOINT_PATH
+from constants import D_MODEL
+from constants import EPOCHS
 from create_masks import create_masks
 
 def evaluate(inp_sentence, tokenizer_en, tokenizer_pt, transformer):
@@ -88,3 +91,30 @@ def translate(sentence, tokenizer_en, tokenizer_pt, transformer, plot=''):
   
   if plot:
     plot_attention_weights(attention_weights, sentence, result, plot, tokenizer_en, tokenizer_pt)
+
+
+class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+  def __init__(self, d_model, warmup_steps=4000):
+    super(CustomSchedule, self).__init__()
+    
+    self.d_model = d_model
+    self.d_model = tf.cast(self.d_model, tf.float32)
+
+    self.warmup_steps = warmup_steps
+    
+  def __call__(self, step):
+    arg1 = tf.math.rsqrt(step)
+    arg2 = step * (self.warmup_steps ** -1.5)
+    
+    return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
+
+def get_checkpoint_object(transformer, optimizer):
+  return tf.train.Checkpoint(transformer=transformer,
+                             optimizer=optimizer)
+
+def get_new_optimizer():
+  learning_rate = CustomSchedule(D_MODEL)
+  return tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+
+def get_checkpoint_manager(ckpt):
+  return tf.train.CheckpointManager(ckpt, CHECKPOINT_PATH, max_to_keep=EPOCHS)
