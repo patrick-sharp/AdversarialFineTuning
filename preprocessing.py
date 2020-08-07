@@ -26,7 +26,7 @@ def get_tokenizers(train_examples):
   return tokenizer_en, tokenizer_pt
 
 # demo english tokenizer
-def demo_english_tokenizer(tokenizer_en, tokenizer_pt):
+def demo_english_tokenizer(tokenizer_en):
   sample_string = 'Transformer is awesome.'
   tokenized_string = tokenizer_en.encode(sample_string)
   print ('Tokenized string is {}'.format(tokenized_string))
