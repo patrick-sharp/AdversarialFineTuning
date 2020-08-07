@@ -5,26 +5,19 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 
 from constants import *
+# Preprocess the data (preprocessing.py)
 from preprocessing import load_data
 from preprocessing import get_tokenizers
 from preprocessing import preprocess_dataset
-
-# Preprocess the data (preprocessing.py)
 train_examples, val_examples = load_data()
 tokenizer_en, tokenizer_pt = get_tokenizers(train_examples)
 train_dataset, val_dataset = preprocess_dataset(train_examples, val_examples, tokenizer_en, tokenizer_pt)
 
+# Get transformer (transformer_model.py)
 from transformer_model import Transformer
-
-# set hyperparameters
-num_layers = 4
-d_model = 128
-dff = 512
-num_heads = 8
 
 input_vocab_size = tokenizer_pt.vocab_size + 2
 target_vocab_size = tokenizer_en.vocab_size + 2
-dropout_rate = 0.1
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
   def __init__(self, d_model, warmup_steps=4000):
@@ -41,17 +34,10 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     
     return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
-learning_rate = CustomSchedule(d_model)
+learning_rate = CustomSchedule(D_MODEL)
 
 optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, 
                                      epsilon=1e-9)
-
-temp_learning_rate_schedule = CustomSchedule(d_model)
-
-plt.plot(temp_learning_rate_schedule(tf.range(40000, dtype=tf.float32)))
-plt.ylabel("Learning Rate")
-plt.xlabel("Train Step")
-
 
 loss_object = tf.keras.losses.SparseCategoricalCrossentropy(
     from_logits=True, reduction='none')
@@ -63,17 +49,17 @@ def loss_function(real, pred):
   mask = tf.cast(mask, dtype=loss_.dtype)
   loss_ *= mask
   
-  return tf.reduce_sum(loss_)/tf.reduce_sum(mask)
+  return tf.reduce_sum(loss_) / tf.reduce_sum(mask)
 
 train_loss = tf.keras.metrics.Mean(name='train_loss')
 train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
     name='train_accuracy')
 
-transformer = Transformer(num_layers, d_model, num_heads, dff,
+transformer = Transformer(NUM_LAYERS, D_MODEL, NUM_HEADS, DFF,
                           input_vocab_size, target_vocab_size, 
                           pe_input=input_vocab_size, 
                           pe_target=target_vocab_size,
-                          rate=dropout_rate)
+                          rate=DROPOUT_RATE)
 
 from create_masks import create_masks
 
@@ -82,14 +68,12 @@ checkpoint_path = "./transformer_checkpoints/train"
 ckpt = tf.train.Checkpoint(transformer=transformer,
                            optimizer=optimizer)
 
-ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=20)
+ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=EPOCHS)
 
 # if a checkpoint exists, restore the latest checkpoint.
 if ckpt_manager.latest_checkpoint:
   ckpt.restore(ckpt_manager.latest_checkpoint)
-  print ('Latest checkpoint restored!!')
-
-EPOCHS = 20
+  print('Latest checkpoint restored!')
 
 # The @tf.function trace-compiles train_step into a TF graph for faster
 # execution. The function specializes to the precise shape of the argument
@@ -123,6 +107,7 @@ def train_step(inp, tar):
   train_loss(loss)
   train_accuracy(tar_real, predictions)
 
+print("Beginning first epoch")
 for epoch in range(EPOCHS):
   start = time.time()
   
@@ -134,7 +119,7 @@ for epoch in range(EPOCHS):
     train_step(inp, tar)
     
     if batch % 50 == 0:
-      print ('Epoch {} Batch {} Loss {:.4f} Accuracy {:.4f}'.format(
+      print('Epoch {} Batch {} Loss {:.4f} Accuracy {:.4f}'.format(
           epoch + 1, batch, train_loss.result(), train_accuracy.result()))
       
   if (epoch + 1) % 5 == 0:
